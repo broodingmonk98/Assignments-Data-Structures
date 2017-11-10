@@ -4,6 +4,9 @@
 typedef struct node{ int x,y,z; } node;
 int main()
 {
+	node *x;
+	free(x);
+	/*
 	FILE *fp = fopen("hi.dat","r+");
 	if(fp == NULL) { printf("file doesn't exist"); return 0;}
 
@@ -34,6 +37,7 @@ int main()
 
 	fclose(fp);
 	free(temp);
+	*/
 
 	return 0;
 }

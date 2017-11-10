@@ -1,8 +1,18 @@
 #include <stdio.h>
 #include <stdlib.h>
-#define TSIZE 2
-#define NoOfKEYS 3
-#define NoOfCHILD 4
+//for colored output
+#define RED   "\x1B[31m"
+#define GRN   "\x1B[32m"
+#define YEL   "\x1B[33m"
+#define BLU   "\x1B[34m"
+#define MAG   "\x1B[35m"
+#define CYN   "\x1B[36m"
+#define WHT   "\x1B[37m"
+#define RESET "\x1B[0m"
+
+#define TSIZE 20
+#define NoOfKEYS 39
+#define NoOfCHILD 40
 
 typedef struct node{
 	int leaf;
@@ -21,6 +31,7 @@ node* BTreeInsert(node *,int);
 int BTreeInsertNonFull(node *,int);
 int DiskWrite(node*,int);
 node *DiskRead(int); 
+void display(node*,int);
 
 //Main
 int main()
@@ -29,20 +40,19 @@ int main()
 	node root,*temp;
 	temp = BTreeCreate();
 	root = *temp;
-	free(temp); //We want to always keep the root with us, without using dynamic memory allocation
+	free(temp); //We want to always keep the root with us, without using dynamic memory 
 	while(1)
 	{
-		printf("\nSize of tree:%d\n",root.n);
-		for(int i=0;i<root.n;i++)
-			printf("%10d",root.key[i]);
-		printf("\n");
+		display(&root,0);
 		int n;
 		scanf("%d",&n);
 		if(n==-1)
 			break;
 		temp = malloc(sizeof(node));
 		*temp = root; //we don't pass root itself since we might end up freeing it
-		root = *BTreeInsert(temp,n);
+		temp = BTreeInsert(temp,n);
+		root = *temp;
+		free(temp);
 	}
 	FILE *fp = fopen(".rootpos","w");
 	fwrite(&(root.pos),sizeof(int),1,fp);
@@ -66,6 +76,7 @@ node *BTreeCreate() //returns the node created (it is the root)
 	x = malloc(sizeof(node)); //if its not there, create it
 	x->leaf = 1;//it is a leaf
 	x->n	= 0;
+	//for (int abcd = 0;abcd<2*TSIZE+1;abcd++) x->child[abcd] = -1;
 	DiskWrite(x,-1);
 	return x;
 
@@ -76,19 +87,16 @@ int DiskWrite(node *x,int n)
 {
 	FILE *fp;
 	if(n == -1){
-	fp = fopen("Data/nodes.dat","r+");
-	if(fp == NULL) fp = fopen("Data/nodes.dat","a");
-	fseek(fp,0,SEEK_END);
+	fp = fopen(".nodes.dat","a");
 	if(fp == NULL) return -1;
 	int offset = ftell(fp); 
 	x->pos = offset;
 	fwrite(x,sizeof(node),1,fp);
 	fclose(fp);
-	printf("Offset : %d\n", offset);
 	return offset;
 	}
 	else {
-	fp = fopen("Data/nodes.dat","r+");
+	fp = fopen(".nodes.dat","r+");
 	if(fp == NULL) {printf("\nERROR. File doesn't exist!!!\n"); return -1; }
 	fseek(fp,n,SEEK_SET);
 	int offset = ftell(fp); 
@@ -100,7 +108,7 @@ int DiskWrite(node *x,int n)
 }
 node *DiskRead(int n) 
 { //Returns the node with the offset n in the given file
-	FILE *fp = fopen("Data/nodes.dat","r");
+	FILE *fp = fopen(".nodes.dat","r");
 	if(fp == NULL) { printf("ERROR!!!"); return NULL; }
 	fseek(fp,n,SEEK_SET);
 	node *x = malloc(sizeof(node));
@@ -117,27 +125,27 @@ node *BTreeSplitChild(node*x ,int i)
 	z->n = TSIZE - 1;
 	for(j=0;j<TSIZE - 1;j++)
 		z->key[j] = y->key[TSIZE + j];
-	if(y->leaf) //if its not a leaf
+	if(y->leaf==0){ //if its not a leaf
 		for(j =0;j<TSIZE;j++)
 			z->child[j] = y->child[j+TSIZE];
+	}else
+		for(j =0;j<TSIZE;j++)
+			z->child[j] = -1; 
 	
-	printf("\nWriting z:");
 	DiskWrite(z,-1);
-	y->n = TSIZE-1;
 
-	for(j=x->n;j>i;j--)
+	y->n = TSIZE-1;
+	for(j=x->n;j>=i;j--) //CHECK THIS
 		x->child[j+1] = x->child[j];
 	x->child[i+1] = z->pos;
 	for(j=x->n-1;j>=i;j--)
 		x->key[j+1]=x->key[j];
-	x->key[i]=y->key[TSIZE];	
+	x->key[i]=y->key[TSIZE-1];
 	x->n = x->n+1; 
 
-	printf("\nWriting y%d:",y->pos);
 	DiskWrite(y,y->pos);
-	printf("\nWriting x");
-	DiskWrite(x,-1);
-	printf("\nx pos%d:",x->pos);
+	DiskWrite(x,x->pos);
+	free(y);
 	return z; //the new node
 
 	//still have to take care of freeing stuff (if anything has to be freed that is
@@ -151,7 +159,11 @@ node* BTreeInsert(node *head,int x) //inserts x into head
 		s->leaf = 0; //not a leaf
 		s->n = 0; //check
 		s->child[0] = head->pos;
-		BTreeSplitChild(s,0); //take care of 0 or 1 business TODO
+
+		for (int abcd = 1;abcd<=2*TSIZE-1;abcd++) s->child[abcd] = -1;
+
+		s->pos = -1; //it has not yet been written to disk
+		BTreeSplitChild(s,0); 
 		BTreeInsertNonFull(s,x);
 		//free(head);
 		return s; //new root 
@@ -174,20 +186,51 @@ int BTreeInsertNonFull(node *head, int k)
 	}
 	else
 	{ 
-		while(i>=0 && k < head->key[i])
+		while(i>=0 && k > head->key[i])//CHANGED
 			i--;
 		i++;
 		node* child = DiskRead(head->child[i]),*newchild;
 		if(child->n == TSIZE*2 - 1){
 			newchild = BTreeSplitChild(head,i);
-			if (k>head->key[i])
-				i++;
+			child    = DiskRead(head->child[i]);
+
+			printf("\nHIHIHI: %d\n",child->n);
+			if(k < head->key[i])
+			{	free(child); child = newchild; }
+			else free(newchild);
+			BTreeInsertNonFull(child,k);
+			free(child);
+			return 0;
 		}
-		if(k>head->key[i])
-			child = newchild;
 		//or maybe not://free(head); //we are freeing head so should remember the root in the main function separately.
 		BTreeInsertNonFull(child,k);
-		free(child); if(child!=newchild) free(newchild);
+		free(child); 
 	}
 	return 0;
+}
+
+void display(node *x,int level)
+{
+	int n = x->n;
+	if(level == 0)  printf("ROOT @%4d:",x->pos);
+	else 		printf(" @%4d :",x->pos);
+	if(level%4 == 0)	printf("\n"RED);
+	if(level%4 == 1)	printf("\n"YEL);
+	if(level%4 == 2)	printf("\n"BLU);
+	if(level%4 == 3)	printf("\n"GRN);
+	for(int i=0;i<n;i++)
+		printf("%5d",x->key[i]);
+	printf("\n"RESET);
+	
+
+	if(!(x->leaf)){ //if its not a leaf
+	for(int i=0;i<=n;i++)
+		if(x->child[i] != -1){
+			printf("Child of %d at level %d :",x->pos,level+1);
+			display(DiskRead(x->child[i]),level+1);
+		}
+	}else
+		printf("---------------------\n");
+
+	if(level) free(x);
 }

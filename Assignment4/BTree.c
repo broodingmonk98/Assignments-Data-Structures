@@ -276,20 +276,27 @@ int delete(node *x,int k)
 		//predecessor deleting k each time
 
 		node *leftChild = DiskRead(x->child[j]);
+		while(leftChild->leaf==0)
+			leftChild=DiskRead(leftChild->child[leftChild->n]);
+		//a lot of freeing is to be done here
+
 		if(leftChild -> n >= TSIZE)
 		{
 			//substitute key[j]'s predecessor in place of key[j]
-			//TODOwhile(leftChild->n
 			x->key[j] = leftChild->key[leftChild->n - 1];
 			DiskWrite(x,x->pos);
 			delete(leftChild, x->key[j]);
 			//free(x);
 			return 0;
 		} 
+		
 		//if child suceeding  k has atleast t keys, find successor 
 		//of k in the tree recursively and replace k by its successor
 		//deleting k each time
 		node *rightChild =DiskRead(x->child[j+1]);
+		while(rightChild->leaf==0)
+			rightChild=DiskRead(rightChild->child[rightChild->n]);
+		//lot of freeing can be done
 		if(rightChild -> n >= TSIZE)
 		{
 			//substitute key[j]'s successor in place of key[j]
@@ -299,7 +306,10 @@ int delete(node *x,int k)
 			//free(x);
 			return 0;
 		}
+
 		//if both have TSIZE-1 keys
+		rightChild =DiskRead(x->child[j+1]);
+		leftChild = DiskRead(x->child[j]);
 		//merging everything into leftChild
 		leftChild->n = TSIZE*2-1;
 		leftChild->key[TSIZE-1] = k;

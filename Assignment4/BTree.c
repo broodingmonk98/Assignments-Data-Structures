@@ -10,9 +10,9 @@
 #define WHT   "\x1B[37m"
 #define RESET "\x1B[0m"
 
-#define TSIZE 20
-#define NoOfKEYS 39
-#define NoOfCHILD 40
+#define TSIZE 2
+#define NoOfKEYS 3
+#define NoOfCHILD 4
 
 typedef struct node{
 	int leaf;
@@ -32,6 +32,7 @@ int BTreeInsertNonFull(node *,int);
 int DiskWrite(node*,int);
 node *DiskRead(int); 
 void display(node*,int);
+int delete(node*,int);
 
 //Main
 int main()
@@ -53,6 +54,15 @@ int main()
 		temp = BTreeInsert(temp,n);
 		root = *temp;
 		free(temp);
+	}
+	while(1)
+	{
+		display(&root,0);
+		int n;
+		scanf("%d",&n);
+		if(n==-1)
+			break;
+		delete(&root,n);
 	}
 	FILE *fp = fopen(".rootpos","w");
 	fwrite(&(root.pos),sizeof(int),1,fp);
@@ -219,7 +229,7 @@ void display(node *x,int level)
 	if(level%4 == 2)	printf("\n"BLU);
 	if(level%4 == 3)	printf("\n"GRN);
 	for(int i=0;i<n;i++)
-		printf("%5d",x->key[i]);
+		printf("%6d",x->key[i]);
 	printf("\n"RESET);
 	
 
@@ -234,3 +244,192 @@ void display(node *x,int level)
 
 	if(level) free(x);
 }
+
+int delete(node *x,int k)
+{
+	//we assume that the node we have descended into has atleast t 
+	//as opposed to t-1 elements condition for the BTree
+	int i = x->n - 1;
+	int j;
+	for(j = 0;j<=i;j++)
+		if(x->key[j] == k)
+			break;
+	if(x->leaf) //if its a leaf
+	{
+		//delete the key from the leaf directly	
+		if(j>i) //if the key doesn't exist
+		{printf("\nKey Not Found"); return -1; }
+		//if the key exists shift the elements after key one unit left
+		while(j<i)
+			x->key[j] = x->key[j+1],j++;
+		printf("\nkey successfully deleted");
+		x->n--;
+		DiskWrite(x,x->pos);
+		return 0;
+		
+	}
+
+	if (x->leaf==0 && j<=i) //if its an internal node and contains k
+	{
+		//if child preceeding k has atleast t keys, find predecessor 
+		//of k in the tree recursively and replace k by its 
+		//predecessor deleting k each time
+
+		node *leftChild = DiskRead(x->child[j]);
+		if(leftChild -> n >= TSIZE)
+		{
+			//substitute key[j]'s predecessor in place of key[j]
+			//TODOwhile(leftChild->n
+			x->key[j] = leftChild->key[leftChild->n - 1];
+			DiskWrite(x,x->pos);
+			delete(leftChild, x->key[j]);
+			//free(x);
+			return 0;
+		} 
+		//if child suceeding  k has atleast t keys, find successor 
+		//of k in the tree recursively and replace k by its successor
+		//deleting k each time
+		node *rightChild =DiskRead(x->child[j+1]);
+		if(rightChild -> n >= TSIZE)
+		{
+			//substitute key[j]'s successor in place of key[j]
+			x->key[j] = rightChild->key[0];
+			DiskWrite(x,x->pos);
+			delete(rightChild, x->key[j]);
+			//free(x);
+			return 0;
+		}
+		//if both have TSIZE-1 keys
+		//merging everything into leftChild
+		leftChild->n = TSIZE*2-1;
+		leftChild->key[TSIZE-1] = k;
+		for(int tempI = 0;tempI<TSIZE-1;tempI++)
+			leftChild->key[TSIZE+tempI] = rightChild->key[tempI];
+		for(int tempI = 0;tempI<TSIZE;tempI++)
+			leftChild->child[TSIZE+tempI] =rightChild->child[tempI];
+		DiskWrite(leftChild,leftChild->pos);
+		//shifting things in x and throwing away pointer to rightChild
+		for(int tempI = j;tempI<i;tempI++){
+			x->key[tempI]    = x->key[tempI+1];
+			x->child[tempI+1]=x->child[tempI+2];
+		}
+		x->n--;
+		DiskWrite(x,x->pos);
+		delete(leftChild,k);
+		return 0;
+
+	}
+
+	if (x->leaf==0 && j>i) //This has to be the only there case
+	{//if x is internal node and does not contain k
+		//find the child that could contain k
+		j=0;
+		while(j<=i&&x->key[j] > k)
+			j++;
+		node *child = DiskRead(x->child[j]);
+		//if the child has atleast t keys descend into it
+		if(child->n >= TSIZE){
+			delete(child,k);
+			return 0;
+		}
+		//if the child has t-1 keys then check if an immediate sibling
+		//has t keys, and 'borrow' a key from a sibling if one 
+		//such sibling exists
+		if(j>0){ 
+			node *left = DiskRead(x->child[j-1]);
+			if(left->n>=TSIZE)
+			{
+				//shift everything one unit to the right
+				for(int tempI=TSIZE-1;tempI>0;tempI--){
+					child->key[tempI]=child->key[tempI-1];
+					child->child[tempI+1] = child->child[tempI];
+				} child->child[1]=child->child[0];
+				child->key[0]  = x->key[j-1];
+				x->key[j-1] = left->key[left->n - 1];
+				child->child[0]= left->key[left->n];
+				left->n--;
+				DiskWrite(left,left->pos);
+				DiskWrite(x,x->pos);
+				DiskWrite(child,child->pos);
+				//because child now has t children
+				delete(child,k);
+				return 0;
+			}
+		}else if(j<=i)
+		{
+			node *right = DiskRead(x->child[j+1]);
+			if(right->n>=TSIZE)
+			{
+				child->key[TSIZE-1]  = x->key[j];
+				child->child[TSIZE]  = right->child[0];
+				x->key[j] = right->child[0];
+				//shift everything one unit to the left in right
+				for(int tempI=0;tempI<right->n-1;tempI++){
+					right->key[tempI]=right->key[tempI+1];
+					right->child[tempI] = right->child[tempI+1];
+				} right->child[right->n-1]=right->child[right->n];
+				right->n--;
+				DiskWrite(right,right->pos);
+				DiskWrite(x,x->pos);
+				DiskWrite(child,child->pos);
+				//because child now has t children
+				delete(child,k);
+				return 0;
+			}
+		}
+		//if the child has t-1 keys and both its siblings have t-1 keys,
+		//merge the child with one of its siblings, and then descend into it
+		if(j<=i) //to take care of j==0(Case 1:)
+		{
+			node *right = DiskRead(x->child[j+1]);
+			if(right->n==TSIZE-1)
+			{
+				//merging child and right
+				child->key[TSIZE-1]=x->key[j];
+				for(int tempI=TSIZE;tempI<2*TSIZE-1;tempI++)
+				{
+					child->key[tempI] = right->key[tempI-TSIZE];
+					child->child[tempI] = right->child[tempI-TSIZE];
+				}child->child[TSIZE*2-1] = right->child[TSIZE-1];
+				//shifting things in x
+				while(j<=i-1){
+					x->key[j]=x->key[j+1];
+					x->child[j+1]=x->child[j+2];
+				}
+				x->n--;
+				child->n=TSIZE*2-1;
+				DiskWrite(x,x->pos);
+				DiskWrite(child,child->pos);
+				delete(child,k);
+
+			}
+
+		}else //if j == i+1 that is the rightmost child of x
+		{
+			node *left= DiskRead(x->child[j-1]);
+			if(left->n==TSIZE-1)
+			{
+				//merging child and right
+				left->key[TSIZE-1]=x->key[j-1];
+				for(int tempI=TSIZE;tempI<2*TSIZE-1;tempI++)
+				{
+					left->key[tempI] = child->key[tempI-TSIZE];
+					left->child[tempI] = child->child[tempI-TSIZE];
+				}left->child[TSIZE*2-1] = child->child[TSIZE-1];
+				//shifting things in x
+				while(j<=i-1){
+					x->key[j-1]=x->key[j];
+					x->child[j]=x->child[j+1];
+				}
+				x->n--;
+				left->n=TSIZE*2-1;
+				DiskWrite(x,x->pos);
+				DiskWrite(left,left->pos);
+				delete(left,k);
+
+			}
+
+		}
+	}
+	return 5;
+} 

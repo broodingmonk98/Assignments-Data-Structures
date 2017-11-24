@@ -188,11 +188,10 @@ node* search(node *ptr)
 
 node *delete(node *ptr)
 {
-	node *top=ptr;
 	printf("\nEnter the node to be deleted :");
 	int n;
 	scanf("%d",&n);
-	if(ptr == nil) {printf("\nNode not found."); return NULL; }
+	if(ptr == nil) {printf("\nNode not found."); return nil; }
 	//As in insert, we have to remember the parents.
 	node *(*prt) = malloc(sizeof(node*)*20); int pidx=0; //parent index
 	int *lrchild = malloc(sizeof(int)*21);//stores whether left/right child
@@ -212,30 +211,32 @@ node *delete(node *ptr)
 			trav = trav->left ,l=1,lrchild[pidx]=1; 
 		else if(trav->n < n)
 			trav = trav->right,l=0,lrchild[pidx]=0;
+
 		if(trav->n==n)
 			break;
 	}
 	if(trav == nil) { printf("\nNode not found."); return ptr; } 
+
 	printf("\n%d %d :)\n",trav->n,save->n);
 
-	node *y=trav; //As in CLRS
+	node *y=trav; //As in CLRS 
 	int orgColor = y->color;
 	node *x=nil; x->color=0;
 
 	//Now as seen in CLRS we break it into three cases:
 	//First if there are no children:
-	if(trav->left ==nil && trav->right == NULL)
+	if(trav->left ==nil && trav->right == nil)
 	{
 		if(l==-1)  ptr = nil; //If trav is root
 		else if(l) save->left = nil;
 		else       save->right= nil;
 		free(trav); 
 		if(orgColor ==0)//if orignal color is black
-			RBDeleteFixUp(x,prt,lrchild,pidx);
+			ptr=RBDeleteFixUp(x,prt,lrchild,pidx); //note here x = nil
 		return ptr;
 	}
 	//Second if there is a single child:
-	if(trav->left == nil || trav->right == NULL) 
+	if(trav->left == nil || trav->right == nil) 
 	{
 		//stores the child of trav (only one possible)
 		x = trav->right== nil?trav->left:trav->right;
@@ -248,31 +249,35 @@ node *delete(node *ptr)
 			save->right= x;
 		free(trav);
 		if(orgColor ==0)//if orignal color is black
-			RBDeleteFixUp(x,prt,lrchild,pidx);
+			ptr = RBDeleteFixUp(x,prt,lrchild,pidx);
 		return ptr;
 	}
 	//Third, if there are two children:
-	prt[pidx++] = trav; lrchild[pidx]=0; 
+	prt[pidx++] = trav; lrchild[pidx]=0; //going into trav's right child
 	//if trav->right has no left subtree:
 	if(trav->right->left == nil)
 	{
 		y = trav->right;
 		orgColor = y->color;
+		y->color = trav->color; //y has same color as z
+		prt[idx++] = y; lrchild[pidx]= 0; //x is y's right child
 		x = y->right; 
 		if(x==nil) x->color=0; //ensuring nil is black
 
 		if(l == -1) //if trav is the root
-			ptr = trav->right;
+			ptr = y;
 		else if(l == 1)
-			save->left = trav->right;
+			save->left = y;
 		else
-			save->right= trav->right;
-		trav->right->left = trav->left;
+			save->right= y;
+		y->left = trav->left;
+		//no need to change y->right
 		free(trav);
 		if(orgColor ==0)//if orignal color is black
-			RBDeleteFixUp(x,prt,lrchild,pidx);
+			ptr = RBDeleteFixUp(x,prt,lrchild,pidx);
 		return ptr;
-	}
+	}	
+	
 	//Last case Smallest Right Child:
 	prt[pidx++]=trav->right; lrchild[pidx]=1;
 	//(can't be null, since we took care of that just before this.)
@@ -285,6 +290,11 @@ node *delete(node *ptr)
 	}
 	y = SmallRC;
 	orgColor = y->color;
+	y->color = trav->color; //y is given z's color z
+
+	prt[idx++] = y; //parent of x.
+	lrchild[idx] = 0;
+
 	x = y->right; if(x==nil) x->color =0; //ensuring nil is black.
 	//change connections
 	itsParent->left = SmallRC->right;
@@ -412,58 +422,79 @@ node* RBDeleteFixUp(node*n,node **prt,int *lr,int idx)
 	{ 
 		printf("%d -> ",prt[i]->n );
 	}
-	nil->color = 0;
+	printf("\n");
+	nil->color = 0; //nil is black
 	 while(n!=prt[0] && n->color == 0) //0 for black
 	{
 		//Big CASE1:
 		if(lr[idx]) // if n is a left child
 		{
 			node *w = prt[idx-1]->right;//sibling of n
-			if(w->color == 1) //case 1:
-			{
-				w->color = 0,prt[idx-1]->color = 1;
+			if(w->color == 1){ //case 1: w is red
+				w->color = 0;
+				prt[idx-1]->color = 1;
 				leftRotate(prt[idx-1]);
-				w = prt[idx-1]->right;
-			} nil->color = 0; //just setting nil black now and then to make sure that its color hasn't changed.
-			if(w->left->color == 0 && w->right->color==0) //if both children of w are black case 2:
-				w->color = 1,n = prt[--idx];
+				//one parent is added after left rotate
+				prt[idx] = prt[idx-1]->left; 
+				idx++;
+				lr[idx]= 1;// x is a left child of the new parent
+				w = prt[idx-1]->right; //w should continue being x's sibling.
 
-			else if(w->right->color ==0) //case 3:
-			{
+			} 
+			nil->color = 0; //just setting nil black now and then to make sure that its color hasn't changed.
+
+			if(w->left->color == 0 && w->right->color==0){ //case 2: if both children of w are black
+				w->color = 1;
+				n = prt[--idx];
+			}
+
+			else if(w->right->color ==0){ //case 3: if right child of w is black(we convert it to case 4)
+			
 				w->left->color =0;
 				w ->color = 1;
 				rightRotate(w);
 				w = prt[idx-1]->right;
 			}
-			w->color = prt[idx-1]->color; //case 4:
+			w->color = prt[idx-1]->color; //case 4: when right child of w is red
 			prt[idx-1]->color = 0;
 			w ->right->color = 0;
 			leftRotate(prt[idx-1]);
+			//loop shall terminate immediately so no need to rearrange parents of n
 			n = prt[0];
 		}
-		else   //Big CASE 2:
+		else   //Big CASE 2:lr[idx]==0 (n is right child)
 		{
 			node *w = prt[idx-1]->left;//sibling of n
-			if(w->color == 1) //case 1:
-			{
-				w->color = 0,prt[idx-1]->color = 1;
+			if(w->color == 1){ //case 1: w is red
+				w->color = 0;
+				prt[idx-1]->color = 1;
 				rightRotate(prt[idx-1]);
-				w = prt[idx-1]->right;
-			} nil->color = 0; //just setting nil black now and then to make sure that its color hasn't changed.
-			if(w->left->color == 0 && w->right->color==0) //if both children of w are black case 2:
-				w->color = 1,n = prt[--idx];
+				//one parent is added after leftrotate
+				prt[idx] = prt[idx-1]->right; 
+				idx++;
+				lr[idx]= 0;// x is a left child of the new parent
+				w = prt[idx-1]->left; //w should continue being x's sibling.
 
-			else if(w->left->color ==0) //case 3:
-			{
+			} 
+			nil->color = 0; //just setting nil black now and then to make sure that its color hasn't changed.
+
+			if(w->left->color == 0 && w->right->color==0){ //case 2: if both children of w are black
+				w->color = 1;
+				n = prt[--idx];
+			}
+
+			else if(w->left->color ==0){ //case 3: if left child of w is black(we convert it to case 4)
+			
 				w->right->color =0;
 				w ->color = 1;
 				leftRotate(w);
 				w = prt[idx-1]->left;
 			}
-			w->color = prt[idx-1]->color; //case 4:
+			w->color = prt[idx-1]->color; //case 4: when left child of w is red
 			prt[idx-1]->color = 0;
-			w ->right->color = 0;
+			w ->left->color = 0;
 			rightRotate(prt[idx-1]);
+			//loop shall terminate immediately so no need to rearrange parents of n
 			n = prt[0];
 		}
 	}

@@ -225,9 +225,8 @@ void DecreaseKey(node*h,node*x,int k,node **parent,int n)
 	while(n>0&& k < parent[n-1]->n) //if the parent is larger then we swap
 	{
 		//swapping the values in x and its parent
-		int temp = parent[n-1]->n;
-		parent[n-1]->n = x->n;
-		x->n = temp;
+		x->n = parent[n-1]->n;
+		parent[n-1]->n = k;
 		x = parent[n-1]; //moving x one unit up
 		n--; //the parent moves up one unit as well
 

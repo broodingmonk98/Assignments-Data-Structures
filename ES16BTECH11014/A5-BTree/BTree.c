@@ -455,6 +455,7 @@ int delete(node *x,int k)
 				for(int tempI=TSIZE-1;tempI>0;tempI--){
 					child->key[tempI]=child->key[tempI-1];
 					child->child[tempI+1] = child->child[tempI];
+
 				} child->child[1]=child->child[0];
 
 				child->key[0]  = x->key[j-1];
@@ -472,14 +473,16 @@ int delete(node *x,int k)
 				return 0;
 			}
 			free(left);
-		}else if(j<=i)
+		}
+		if(j<=i) //for j == 0;
 		{
 			node *right = DiskRead(x->child[j+1]);
 			if(right->n>=TSIZE)
 			{
 				child->key[TSIZE-1]  = x->key[j];
 				child->child[TSIZE]  = right->child[0];
-				x->key[j] = right->child[0];
+				x->key[j] = right->key[0];
+				child->n++;
 
 				//shift everything one unit to the left in right
 				for(int tempI=0;tempI<right->n-1;tempI++){
@@ -518,6 +521,7 @@ int delete(node *x,int k)
 				while(j<=i-1){
 					x->key[j]=x->key[j+1];
 					x->child[j+1]=x->child[j+2];
+					j++;
 				}
 				x->n--;
 				child->n=TSIZE*2-1;

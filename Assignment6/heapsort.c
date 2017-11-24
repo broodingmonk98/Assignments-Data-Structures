@@ -2,7 +2,6 @@
 #include <stdlib.h>
 
 void maxHeapify(int *arr,int n,int i);
-int abc=0;
 int main()
 {
 	int n;
@@ -23,14 +22,12 @@ int main()
 	}
 	for(int i=1;i<=n0;i++)
 		printf("%d\n",arr[i]);
-	printf("ABC:%d",abc);
 	
 	return 0;	
 }
 
 void maxHeapify(int *arr,int n,int i)
 {
-	abc++;
 	int l=i<<1,r=(i<<1)+1,largest=i;
 	if(l<= n&& arr[largest]<arr[l]) largest = l;
 	if(r<= n&& arr[largest]<arr[r]) largest = r;

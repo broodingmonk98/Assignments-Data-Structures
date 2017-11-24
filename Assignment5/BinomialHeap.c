@@ -1,3 +1,9 @@
+/* Implementation of a binomial heap
+   the decrease key operation, expects an array of ancestors upto the node 
+   and so has instead been used only in the delete operation (and the user
+   can't use it in the main menu).
+   Note Delete takes O(n) since it also has to find the element in the binomial heap
+*/
 #include <stdio.h>
 #include <stdlib.h> 
 #define RED   "\x1B[31m"
@@ -27,29 +33,65 @@ void  DecreaseKey(node*,node*,int,node**,int);
 node* Delete(node*,int);
 void display(node*);
 
+int minG;
+
 int main()
 {
 	Nil = malloc(sizeof(node)); //just a dummy
 	node* Head;
 	Head = MakeBHeap();
-	while(1){
-		printf("\nEnter the node to be inserted:");
-		int n;
-		scanf("%d",&n);
-		if(n==-1)break;
-		Head = InsertNode(Head,n);
-		display(Head);
-	}
-	printf("\n\ncontinually extracting stuff\n\n");
-	while(Head!=Nil)
+	int choice =0;
+	while(choice != 4)
 	{
-		int n;
-		scanf("%d",&n);
-		Head=Delete(Head,n);
-		if(n == -1) break;		
 		display(Head);
+		printf("\nMenu:\n\t1)Insert\n\t2)Extract Min\n\t3)Delete");
+		printf("\n\t4)Exit\nEnter your choice:");
+		scanf("%d",&choice);
+		if(choice == 1){
+			while(1){
+				printf("\nEnter the node to be inserted:");
+				int n;
+				scanf("%d",&n);
+				if(n==-1)break;
+				Head = InsertNode(Head,n);
+				display(Head);
+			}
+		}
+		else if(choice == 2){
+			if(Head==Nil){
+				printf("\nBinomial Heap Empty!!!\n");
+				continue;
+			}
+			Head = ExtractMin(Head);
+			printf("\nMinimum Extracted :%d",minG);
+			printf("\nPress Enter\n");
+			getchar();
+		}
+
+		else if(choice == 3){
+			while(Head!=Nil){
+				
+				int n;
+				printf("\nEnter node to delete:");
+				scanf("%d",&n);
+				Head=Delete(Head,n);
+				printf("\nSuccessful");
+				if(n == -1) break;		
+				display(Head);
+			}
+		}
+		else if(choice == 4){
+			printf("Are you sure(y/n)");
+			if(getchar() =='y')
+				break;
+		}
+
+
 	}
 
+	while(Head!=Nil) Head=ExtractMin(Head); //don't care about efficiency
+	printf("\nMemory freed\n");
+	printf("Thank you, have a nice day");
 	free(Nil);
 	return 0;
 }	
@@ -125,6 +167,7 @@ node* BinomialHeapUnion(node*h1,node*h2)
 
 node* InsertNode(node* h,int n)
 {
+	//we create another heap with a singleton element and take its union with h
 	node *h1=MakeBHeap();
 	h1 = malloc(sizeof(node));
 	h1->n = n;
@@ -145,6 +188,7 @@ node* ExtractMin(node* h)
 		travPrev = trav;
 		trav=trav->sibling;
 	}
+	minG = min->n; //to output the min value in main
 	//Breaking out that root from the linked list h.
 	if(prev!=Nil)
 		prev->sibling = min->sibling;
@@ -193,25 +237,21 @@ void DecreaseKey(node*h,node*x,int k,node **parent,int n)
 node* Delete(node* h,int k)
 { //if have to delete node with value k from the binomial heap
 	//First we find the node: O(n)
+
 	if(h==Nil) {printf("\nUnsuccessful\n"); return h;}
 
 	//array of ancestors of node with k
 	node **prt = malloc(sizeof(node*)*20); //Assuming max depth 20
-	printf("Just allocated prt\n");
 
 	//Shall find k in binomial heap h, and return parent list
 	int FindKey(node *h,int k,node** prt,int i);
 	int n = FindKey(h,k,prt,0);
-	printf("FindKey returned\n");
 	if(n == -1){ //key k not found
 		printf("\nKey not found. \n");	
 		return h;
 	}
 	//decreasing the key 
-	for(int i =0;i<=n;i++)
-		printf("\ntra :%d",prt[i]->n);
-	printf("\n");
-	DecreaseKey(h,prt[n],0xffffffff,prt,n);
+	DecreaseKey(h,prt[n],0xffffffff,prt,n); //-infinity
 	free(prt);
 	return ExtractMin(h);
 
@@ -221,7 +261,6 @@ int FindKey(node *h,int k,node** prt,int i)
 	if(i>20) return -1; //prt size is at max 20;
 	node* trav=h;
 	int check=-1;
-	printf("level: %d key: %d",i,trav->n);
 	for(trav=h; trav!=Nil; trav= trav->sibling)
 	{
 		if(trav->n == k){ //if the key is found
@@ -242,7 +281,6 @@ int FindKey(node *h,int k,node** prt,int i)
 	if( trav == Nil) //only other possibility
 		return -1;
 	//shouldn't reach this point
-	printf("BLAHBLAHBLAH\n");
 	return -1;
 }
 
